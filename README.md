@@ -1,1 +1,1 @@
-# dasip23_comp_fl
+#Future repo for the Dasip23 short paper on FL and compression
