@@ -1,9 +1,6 @@
 import flwr as fl
-from flwr.common.typing import Scalar
 import torch
-import torchvision
-from typing import Dict, Callable, Optional, Tuple
-from dataset_utils import get_EMNIST, get_cifar_10, do_fl_partitioning,get_cifar_100
+from dataset_utils import get_cifar_10, do_fl_partitioning,get_cifar_100
 from utils import set_params,test,tell_history,pile_str,get_tensor_parameters
 import time
 import multiprocess as mp
@@ -12,7 +9,6 @@ from args import args
 from datetime import datetime
 import time
 from binaryconnect import BC
-
 
 #torch.backends.cudnn.benchmark = True
 
@@ -25,11 +21,17 @@ elif(args.model == "resnet20"):
 elif(args.model == "resnet12"):
     from models.resnet12 import ResNet12
     resnet_model = ResNet12
+elif(args.model == "resnet8"):
+    from models.resnets import ResNet8
+    resnet_model = ResNet8
 elif(args.model == "qresnet12"):
     from models.resnet12_brev import QResNet12
     resnet_model = QResNet12
+elif(args.model == "qresnet8"):
+    from models.qresnets import QResNet8
+    resnet_model = QResNet8
 
-def fit_config(server_round: int) -> Dict[str, Scalar]:
+def fit_config(server_round):
     """Return a configuration with static batch size and (local) epochs."""
     config = {
         "epochs": args.cl_epochs,  # number of local epochs
@@ -39,15 +41,9 @@ def fit_config(server_round: int) -> Dict[str, Scalar]:
     }
     return config
 
-def get_evaluate_fn(
-    testset: torchvision.datasets.CIFAR10,
-    dataset_info,
-) -> Callable[[fl.common.NDArrays], Optional[Tuple[float, float]]]:
+def get_evaluate_fn( testset,dataset_info) :
     """Return an evaluation function for centralized evaluation."""
-
-    def evaluate(
-        server_round: int, parameters: fl.common.NDArrays, config: Dict[str, Scalar]
-    ) -> Optional[Tuple[float, float]]:
+    def evaluate(server_round, parameters, config) :
         """Use the entire CIFAR-10 test set for evaluation."""
 
         # determine device
@@ -59,8 +55,6 @@ def get_evaluate_fn(
         model = resnet_model(args.feature_maps, dataset_info["input_shape"], dataset_info["num_classes"],batchn=False)
         if(args.bnn):
             model = BC(model)
-        elif(args.tnn):
-            model = TC(model)
 
         #model = Net()
         set_params(model, parameters)
@@ -83,7 +77,7 @@ def start_server(srv_addr,strategy,num_rounds,server_queue):
                                 config=fl.server.ServerConfig(num_rounds=num_rounds),
                                 strategy=strategy))
 
-def start_client(model, dataset_info, saddr : str,cid : str,fed_dir : str,features_maps : int,only_cpu: bool):
+def start_client(model, dataset_info, saddr,cid,fed_dir,features_maps,only_cpu):
     from client import FlowerClient
 
     client = FlowerClient(model,dataset_info,saddr,cid,fed_dir,features_maps,only_cpu)
@@ -118,8 +112,6 @@ if __name__ == "__main__":
         train_path, testset,num_classes,input_shape = get_cifar_10()
     elif(args.dataset == "cifar100"):
         train_path, testset,num_classes,input_shape = get_cifar_100()
-    elif(args.dataset == "emnist"):
-        train_path, testset,num_classes,input_shape = get_EMNIST()
     else:
         print("Wrong dataset name")
         exit(-1)
@@ -138,9 +130,6 @@ if __name__ == "__main__":
     model = resnet_model(args.feature_maps,input_shape,num_classes)
     if(args.bnn):
         model = BC(model)
-        model.binarization()
-    elif(args.tnn ):
-        model = TC(model)
         model.binarization()
 
     initial_weights = model
@@ -168,7 +157,6 @@ if __name__ == "__main__":
     time.sleep(2)
 
     processes.append(server_process)
-
 
     for cid in range(pool_size):
         client_process = mp.Process(target=start_client,

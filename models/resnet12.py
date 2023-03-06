@@ -1,9 +1,7 @@
 from utils import *
 from args import *
-import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import random
 
 class BasicBlockRN12(nn.Module):
     def __init__(self, in_planes, planes,batchn):

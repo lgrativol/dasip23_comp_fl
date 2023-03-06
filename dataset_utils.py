@@ -1,5 +1,4 @@
 from pathlib import Path
-import traceback
 import numpy as np
 import torch
 from torchvision import datasets, transforms
@@ -10,28 +9,43 @@ from torchvision.datasets import VisionDataset
 from typing import Callable, Optional, Tuple, Any
 from common import create_lda_partitions
 import os
+from args import args
 
 
 dict_tranforms = {  
     "cifar10"           : transforms.Compose([
+                                        transforms.RandomCrop(32, padding=4),
+                                        transforms.RandomHorizontalFlip(),
                                         transforms.ToTensor(),
                                         transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))]),
     "emnist"            : transforms.Compose([
                                         transforms.ToTensor(),
                                         transforms.Normalize((0.1307,), (0.3081,))]), 
     "cifar100"          : transforms.Compose([
+                                        transforms.RandomCrop(32, padding=4),
+                                        transforms.RandomHorizontalFlip(),
                                         transforms.ToTensor(),
                                         transforms.Normalize((0.5071, 0.4865, 0.4409), (0.2673, 0.2564, 0.2762))]), }
 
+dict_tranforms_test = {
+    "cifar10"           : transforms.Compose([
+                                        transforms.ToTensor(),
+                                        transforms.Normalize((0.4914, 0.4822, 0.4465), (0.2023, 0.1994, 0.2010))]),
+    "emnist"            : transforms.Compose([
+                                        transforms.ToTensor(),
+                                        transforms.Normalize((0.1307,), (0.3081,))]),
+    "cifar100"          : transforms.Compose([
+                                        transforms.ToTensor(),
+                                        transforms.Normalize((0.5071, 0.4865, 0.4409), (0.2673, 0.2564, 0.2762))]), }
 
-def get_dataset(path_to_data: Path, cid: str, partition: str, transform ):
+def get_dataset(path_to_data, cid, partition, transform ):
     # generate path to cid's data
     path_to_data = path_to_data / cid / (partition + ".pt")
 
     return TorchVision_FL(path_to_data, transform=transform)
 
 def get_dataloader(
-    path_to_data: str, cid: str, is_train: bool, batch_size: int, workers: int,transform
+    path_to_data, cid, is_train, batch_size, workers,transform
 ):
     """Generates trainset/valset object and returns appropiate dataloader."""
 
@@ -43,7 +57,7 @@ def get_dataloader(
     return DataLoader(dataset, batch_size=batch_size, **kwargs)
 
 
-def get_random_id_splits(total: int, val_ratio: float, shuffle: bool = True):
+def get_random_id_splits(total, val_ratio, shuffle = True):
     """splits a list of length `total` into two following a
     (1-val_ratio):val_ratio partitioning.
 
@@ -126,8 +140,8 @@ class TorchVision_FL(VisionDataset):
         path_to_data=None,
         data=None,
         targets=None,
-        transform: Optional[Callable] = None,
-    ) -> None:
+        transform= None,
+    ):
         path = path_to_data.parent if path_to_data else None
         super(TorchVision_FL, self).__init__(path, transform=transform)
         self.transform = transform
@@ -139,7 +153,7 @@ class TorchVision_FL(VisionDataset):
             self.data = data
             self.targets = targets
 
-    def __getitem__(self, index: int) -> Tuple[Any, Any]:
+    def __getitem__(self, index):
         img, target = self.data[index], int(self.targets[index])
 
         # doing this so that it is consistent with all other datasets
@@ -158,7 +172,7 @@ class TorchVision_FL(VisionDataset):
 
         return img, target
 
-    def __len__(self) -> int:
+    def __len__(self):
         return len(self.data)
 
 
@@ -166,19 +180,23 @@ def get_cifar_10(path_to_data="./data"):
     """Downloads CIFAR10 dataset and generates a unified training set (it will
     be partitioned later using the LDA partitioning mechanism."""
 
-    # download dataset and load train set
-    train_set = datasets.CIFAR10(root=path_to_data, train=True, download=True)
-
-    input_shape = torch.stack(list(map(transforms.ToTensor(), train_set.data))).shape
-
-    # fuse all data splits into a single "training.pt"
     data_loc = Path(path_to_data) / "cifar-10-batches-py"
     training_data = data_loc / "training.pt"
-    print("Generating unified CIFAR-10 dataset")
-    torch.save([train_set.data, np.array(train_set.targets)], training_data)
+    if(args.skip_gen_training):
+        input_shape = [1,3,32,32]
+        print("Re-using previous generated CIFAR-10 dataset")
+    else:
+        # download dataset and load train set
+        train_set = datasets.CIFAR10(root=path_to_data, train=True, download=True)
+
+        input_shape = torch.stack(list(map(transforms.ToTensor(), train_set.data))).shape
+
+        print("Generating unified CIFAR-10 dataset")
+        # fuse all data splits into a single "training.pt"
+        torch.save([train_set.data, np.array(train_set.targets)], training_data)
 
     test_set = datasets.CIFAR10(
-        root=path_to_data, train=False, transform=dict_tranforms["cifar10"]
+        root=path_to_data, train=False, transform=dict_tranforms_test["cifar10"]
     )
 
     # returns path where training data is and testset
@@ -189,20 +207,21 @@ def get_cifar_100(path_to_data="./data"):
     be partitioned later using the LDA partitioning mechanism."""
 
     # download dataset and load train set
-    train_set = datasets.CIFAR100(root=path_to_data, train=True, download=True)
-
-
-    # fuse all data splits into a single "training.pt"
     data_loc = Path(path_to_data) / "cifar-100-python"
     training_data = data_loc / "training.pt"
-    print("Generating unified CIFAR-100 dataset")
-    torch.save([train_set.data, np.array(train_set.targets)], training_data)
-
-    test_set = datasets.CIFAR100(root=path_to_data, train=False, download=True, transform=dict_tranforms["cifar100"])
-    input_shape = torch.stack(list(map(transforms.ToTensor(), train_set.data))).shape
+    if(args.skip_gen_training):
+        input_shape = [1,3,32,32]
+        print("Re-using previous generated CIFAR-100 dataset")
+    else:
+        # fuse all data splits into a single "training.pt"
+        print("Generating unified CIFAR-100 dataset")
+        train_set = datasets.CIFAR100(root=path_to_data, train=True, download=True)
+        torch.save([train_set.data, np.array(train_set.targets)], training_data)
+        input_shape = torch.stack(list(map(transforms.ToTensor(), train_set.data))).shape
+    test_set = datasets.CIFAR100(root=path_to_data, train=False, download=True, transform=dict_tranforms_test["cifar100"])
 
     # returns path where training data is and testset
-    return training_data, test_set, max(train_set.targets) + 1,input_shape[1:]
+    return training_data, test_set, max(test_set.targets) + 1,input_shape[1:]
 
 def get_EMNIST(path_to_data="./data"):
     """Downloads EMNIST dataset and generates a unified training set (it will

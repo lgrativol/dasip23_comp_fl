@@ -119,8 +119,7 @@ def pretty_parameters(model):
     print(f"Total Trainable Params: {total_params}")
     return total_params
 
-def prune_threshold(model):
-    params = get_params(model)
+def prune_threshold(params):
 
     pruning_rate = args.prate
     sorted = torch.cat([torch.from_numpy(i).flatten().abs() for i in params]).sort()[0]

@@ -42,7 +42,6 @@ class BC():
             E=self.target_modules[index].data.abs().mean()
             self.target_modules[index].data.copy_(self.target_modules[index].data.sign() *E)
             
-            
     def save_params(self):
         for index in range(self.num_of_params):
             self.saved_params[index].copy_(self.target_modules[index].data)
@@ -61,10 +60,10 @@ class BC():
             self.target_modules[index].data.copy_(clip_scale[index].data)
 
     def __call__(self,x):
-        ### This function is used so that the model can be used while training
         return self.model(x)
 
     def eval(self):
+        self.binarization()
         self.model.eval()
 
     def train(self):
@@ -81,3 +80,6 @@ class BC():
 
     def parameters(self):
         return self.model.parameters()
+
+    def modules(self):
+        return self.model.modules()

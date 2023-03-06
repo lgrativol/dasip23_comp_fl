@@ -1,7 +1,6 @@
 import flwr as fl
 from flwr.common.typing import Scalar
 import torch
-import torchvision
 import numpy as np
 from pathlib import Path
 from typing import Dict
@@ -37,15 +36,16 @@ class FlowerClient(fl.client.NumPyClient):
         return get_params(self.net)
         
     def fit(self, parameters, config):
+
         if(args.prune_srv):
-            parameters = prune_threshold(self.net)
+            parameters = prune_threshold(parameters)
 
         set_params(self.net, parameters)
 
         lr = config["cl_lr"]
         momentum = config["cl_momentum"]
         # Load data for this client and get trainloader
-        num_workers = 1
+        num_workers = 2
         trainloader = get_dataloader(
             self.fed_dir,
             self.cid,
@@ -63,10 +63,10 @@ class FlowerClient(fl.client.NumPyClient):
         device=self.device,lr=lr,momentum=momentum )
 
         sparsity = 0
+        params = get_params(self.net)
+
         if(args.prune):
-            params = prune_threshold(self.net)
-        else:
-            params = get_params(self.net)
+            params = prune_threshold(params)
 
         if(args.layer_sparsity):
             sparsity = layer_sparsity(params)
@@ -79,16 +79,15 @@ class FlowerClient(fl.client.NumPyClient):
         # Load data for this client and get trainloader
         num_workers = 2
         valloader = get_dataloader(
-            self.fed_dir, self.cid, is_train=False, batch_size=50, workers=num_workers,transform = dict_tranforms[self.dataset])
+            self.fed_dir, self.cid, is_train=False, batch_size=50, 
+            workers=num_workers,transform = dict_tranforms[self.dataset])
 
-        # Send model to device
         # Send model to device
         self.net.to(self.device)
 
         # Evaluate
         loss, accuracy = test(self.net, valloader, device=self.device)
-        #self.net.to(torch.device("cpu"))
-        #torch.cuda.empty_cache() 
+
         # Return statistics
         return float(loss), len(valloader.dataset), {"accuracy": float(accuracy)}
 

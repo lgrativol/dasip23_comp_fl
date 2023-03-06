@@ -1,15 +1,6 @@
 
-#######################################################################
-
-## Adapted from : https://github.com/vgripon/clean-train/resnet.py ##
-## An entire copy and paste with the removal of NCM layer,           ##
-## rotations, mixup                                                  ##
-
-#######################################################################
-import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from torch.nn.utils.weight_norm import WeightNorm
 
 class BasicBlock(nn.Module):
     def __init__(self, in_planes, planes, stride=1,batchn=False):
