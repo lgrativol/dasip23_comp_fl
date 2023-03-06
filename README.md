@@ -1,1 +1,1 @@
-# Repo for the Dasip23 short paper on FL and compression
+# Repo for the EUSIPCO23 on FL and compression
